@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Aplicación Bien Formateada</title>
+
+    <style>
+        body {
+            font-family: sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: auto;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            padding: 10px 15px;
+            cursor: pointer;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>Título de la Aplicación</h1>
+
+        <p>
+            Este es un párrafo introductorio. Asegúrate de que el texto
+            esté bien organizado y fácil de leer.
+        </p>
+
+        <!-- Sección de controles -->
+        <div class="controls">
+            <label for="input-data">Entrada:</label>
+            <input type="text" id="input-data" name="data">
+            <button id="process-button">Procesar</button>
+        </div>
+
+        <!-- Sección de resultados -->
+        <div id="results">
+            <p>Los resultados aparecerán aquí...</p>
+        </div>
+
+    </div>
+
+    <script>
+        // Comentario explicando el script
+        const button = document.getElementById('process-button');
+        const input = document.getElementById('input-data');
+        const resultsDiv = document.getElementById('results');
+
+        button.addEventListener('click', () => {
+            const data = input.value;
+            resultsDiv.innerHTML = `<p>Procesando: ${data}</p>`;
+            // Aquí iría la lógica real
+        });
+    </script>
+
+</body>
+
+</html>
