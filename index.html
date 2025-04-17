@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reemplazar Color de Imagen</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            text-align: center;
+            color: #333;
+        }
+        .controls, .canvases {
+            margin-bottom: 20px;
+        }
+        .controls div {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="file"],
+        input[type="color"],
+        input[type="text"],
+        input[type="number"],
+        button {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: calc(100% - 22px); /* Account for padding and border */
+            max-width: 300px; /* Limit max width */
+            box-sizing: border-box; /* Include padding in width */
+        }
+         input[type="color"] {
+             padding: 5px; /* Smaller padding for color picker */
+             height: 40px; /* Align height */
+             vertical-align: middle;
+             margin-right: 5px;
+             width: 50px; /* Fixed width for color picker */
+             max-width: 50px;
+         }
+        input[type="text"].hex-input {
+            width: 100px; /* Specific width for hex input */
+            max-width: 100px;
+            vertical-align: middle;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            width: auto; /* Button width auto */
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .canvases {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap; /* Wrap canvases on smaller screens */
+            gap: 20px; /* Space between canvases */
+        }
+        .canvas-container {
+             text-align: center;
+             border: 1px solid #ddd;
+             padding: 10px;
+             background-color: #eee;
+             position: relative; /* Needed for color picker overlay */
+        }
+         .canvas-container h2 {
+             margin-top: 0;
+             margin-bottom: 10px;
+             font-size: 1.1em;
+         }
+        canvas {
+            max-width: 100%; /* Make canvas responsive */
+            height: auto;   /* Maintain aspect ratio */
+            display: block;
+            margin: 0 auto; /* Center canvas */
+            background-color: #fff; /* White background for transparency */
+        }
+        #canvasOriginal {
+            cursor: crosshair; /* Indicate clickable for color picking */
+        }
+        #colorPreview {
+            display: inline-block;
+            width: 25px;
+            height: 25px;
+            border: 1px solid #000;
+            vertical-align: middle;
+            margin-left: 10px;
+        }
+        .color-input-group {
+            display: flex;
+            align-items: center;
+        }
+         .color-input-group label {
+            margin-right: 10px;
+            margin-bottom: 0; /* Reset margin */
+            flex-shrink: 0; /* Prevent label from shrinking */
+         }
+         .tooltip {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: -10px;
+            margin-bottom: 10px;
+         }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Reemplazar Color de Imagen</h1>
+
+    <div class="controls">
+        <div>
+            <label for="imageLoader">1. Selecciona una Imagen:</label>
+            <input type="file" id="imageLoader" name="imageLoader" accept="image/*">
+        </div>
+
+        <div class="color-input-group">
+            <label for="colorToReplace">2. Color a Reemplazar:</label>
+            <input type="color" id="colorToReplace" value="#ffffff">
+            <input type="text" id="hexToReplace" class="hex-input" value="#ffffff" pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$">
+            <span id="colorPreview" style="background-color: #ffffff;"></span>
+        </div>
+         <p class="tooltip">Puedes hacer clic en la imagen original para seleccionar el color.</p>
+
+
+        <div class="color-input-group">
+             <label for="newColor">3. Nuevo Color (Hex):</label>
+            <input type="color" id="newColorPicker" value="#ff0000">
+            <input type="text" id="newColor" class="hex-input" value="#ff0000" pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$">
+        </div>
+
+        <div>
+            <label for="tolerance">4. Tolerancia (0-100):</label>
+            <input type="number" id="tolerance" value="20" min="0" max="100">
+            <p class="tooltip">Qué tan parecidos deben ser los colores para reemplazarlos (0 = exacto, 100 = muy tolerante).</p>
+        </div>
+
+        <button id="processButton" disabled>5. Reemplazar Color</button>
+    </div>
+
+    <div class="canvases">
+        <div class="canvas-container">
+            <h2>Original</h2>
+            <canvas id="canvasOriginal"></canvas>
+        </div>
+        <div class="canvas-container">
+            <h2>Modificada</h2>
+            <canvas id="canvasModified"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    const imageLoader = document.getElementById('imageLoader');
+    const canvasOriginal = document.getElementById('canvasOriginal');
+    const ctxOriginal = canvasOriginal.getContext('2d', { willReadFrequently: true }); // Optimizacion lectura frecuente
+    const canvasModified = document.getElementById('canvasModified');
+    const ctxModified = canvasModified.getContext('2d');
+
+    const colorToReplacePicker = document.getElementById('colorToReplace');
+    const hexToReplaceInput = document.getElementById('hexToReplace');
+    const colorPreview = document.getElementById('colorPreview');
+
+    const newColorPicker = document.getElementById('newColorPicker');
+    const newColorInput = document.getElementById('newColor');
+
+    const toleranceInput = document.getElementById('tolerance');
+    const processButton = document.getElementById('processButton');
+
+    let originalImage = null;
+
+    // --- Sincronización de Pickers y Inputs Hexadecimales ---
+    colorToReplacePicker.addEventListener('input', (e) => {
+        hexToReplaceInput.value = e.target.value;
+        colorPreview.style.backgroundColor = e.target.value;
+    });
+    hexToReplaceInput.addEventListener('input', (e) => {
+        if (/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(e.target.value)) {
+            colorToReplacePicker.value = e.target.value;
+            colorPreview.style.backgroundColor = e.target.value;
+        }
+    });
+
+    newColorPicker.addEventListener('input', (e) => {
+        newColorInput.value = e.target.value;
+    });
+    newColorInput.addEventListener('input', (e) => {
+        if (/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(e.target.value)) {
+            newColorPicker.value = e.target.value;
+        }
+    });
+
+    // --- Carga de Imagen ---
+    imageLoader.addEventListener('change', handleImage, false);
+
+    function handleImage(e) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            originalImage = new Image();
+            originalImage.onload = function() {
+                // Limitar tamaño máximo del canvas por rendimiento y visualización
+                const MAX_WIDTH = 800;
+                const MAX_HEIGHT = 600;
+                let width = originalImage.width;
+                let height = originalImage.height;
+
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+
+                canvasOriginal.width = width;
+                canvasOriginal.height = height;
+                ctxOriginal.drawImage(originalImage, 0, 0, width, height);
+
+                // Prepara canvas modificado pero no dibujes aún
+                canvasModified.width = width;
+                canvasModified.height = height;
+                ctxModified.clearRect(0, 0, width, height); // Limpia por si acaso
+
+                processButton.disabled = false; // Habilita el botón
+            }
+            originalImage.onerror = function() {
+                alert("Error al cargar la imagen. Asegúrate que es un formato válido (PNG, JPG, GIF, etc.).");
+                processButton.disabled = true;
+            }
+            originalImage.src = event.target.result;
+        }
+        reader.onerror = function() {
+            alert("Error al leer el archivo.");
+            processButton.disabled = true;
+        }
+        if (e.target.files[0]) {
+            reader.readAsDataURL(e.target.files[0]);
+        } else {
+            // Si el usuario cancela la selección
+            originalImage = null;
+            ctxOriginal.clearRect(0, 0, canvasOriginal.width, canvasOriginal.height);
+            ctxModified.clearRect(0, 0, canvasModified.width, canvasModified.height);
+            processButton.disabled = true;
+        }
+    }
+
+    // --- Selección de Color haciendo Clic en la Imagen Original ---
+    canvasOriginal.addEventListener('click', function(event) {
+        if (!originalImage) return; // No hacer nada si no hay imagen
+
+        const rect = canvasOriginal.getBoundingClientRect();
+        // Ajustar coordenadas del clic al tamaño real del canvas (no el tamaño mostrado)
+        const scaleX = canvasOriginal.width / rect.width;
+        const scaleY = canvasOriginal.height / rect.height;
+        const x = (event.clientX - rect.left) * scaleX;
+        const y = (event.clientY - rect.top) * scaleY;
+
+        // Obtener el color del pixel en esa coordenada
+        const pixel = ctxOriginal.getImageData(x, y, 1, 1).data;
+        const r = pixel[0];
+        const g = pixel[1];
+        const b = pixel[2];
+        // Ignoramos el alpha (pixel[3]) para el color base
+
+        const hexColor = rgbToHex(r, g, b);
+        colorToReplacePicker.value = hexColor;
+        hexToReplaceInput.value = hexColor;
+        colorPreview.style.backgroundColor = hexColor;
+    });
+
+    // --- Procesamiento de Reemplazo de Color ---
+    processButton.addEventListener('click', replaceColor);
+
+    function replaceColor() {
+        if (!originalImage) {
+            alert("Por favor, carga una imagen primero.");
+            return;
+        }
+
+        const targetHex = colorToReplacePicker.value;
+        const newHex = newColorInput.value;
+        const tolerance = parseInt(toleranceInput.value, 10); // 0-100
+
+        if (!/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(targetHex) || !/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(newHex)) {
+             alert("Por favor, introduce colores hexadecimales válidos (ej: #RRGGBB).");
+             return;
+        }
+
+
+        const targetRgb = hexToRgb(targetHex);
+        const newRgb = hexToRgb(newHex);
+
+        if (!targetRgb || !newRgb) {
+            alert("Error al convertir colores hexadecimales.");
+            return;
+        }
+
+        // Usar la imagen dibujada en canvasOriginal como fuente
+        const imageData = ctxOriginal.getImageData(0, 0, canvasOriginal.width, canvasOriginal.height);
+        const data = imageData.data; // Array de pixels [R,G,B,A, R,G,B,A, ...]
+
+        const toleranceValue = (tolerance / 100) * 255 * Math.sqrt(3); // Escalar tolerancia a distancia euclidiana
+
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            // Alpha (data[i+3]) se mantiene
+
+            // Calcular diferencia de color (distancia Euclidiana en RGB)
+            const diffR = r - targetRgb.r;
+            const diffG = g - targetRgb.g;
+            const diffB = b - targetRgb.b;
+            const distance = Math.sqrt(diffR * diffR + diffG * diffG + diffB * diffB);
+
+            // Si la distancia está dentro de la tolerancia
+            if (distance <= toleranceValue) {
+                data[i] = newRgb.r;     // Nuevo Rojo
+                data[i + 1] = newRgb.g; // Nuevo Verde
+                data[i + 2] = newRgb.b; // Nuevo Azul
+                // data[i + 3] se mantiene (alpha)
+            }
+        }
+
+        // Dibuja la imagen modificada en el segundo canvas
+        ctxModified.putImageData(imageData, 0, 0);
+        console.log("Proceso completado.");
+    }
+
+    // --- Funciones Auxiliares ---
+    function hexToRgb(hex) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : null;
+    }
+
+    function rgbToHex(r, g, b) {
+        return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toLowerCase();
+    }
+
+</script>
+
+</body>
+</html>
